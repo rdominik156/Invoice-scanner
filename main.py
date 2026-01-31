@@ -11,13 +11,15 @@ import fitz
 import io
 
 # Global variables
-windowsPath = r"D:\Program Files\Tesseract-OCR\tesseract.exe"
-pytesseract.tesseract_cmd = windowsPath
+tesseractWindowsPath = r"C:/Program Files/Tesseract-OCR/tesseract.exe"
+pytesseract.pytesseract.tesseract_cmd = tesseractWindowsPath
 
-folder_path = r"D:\Programozás\VS gyakorlás\Számla extraktor\invoices"
+#main_folder_path = r"D:\Programozás\VS gyakorlás\Számla extraktor\invoices"
+main_folder_path = r"C:/Users/User/Documents/GitHub/Invoice-scanner"
 
+# ----- PDF-en használt műveletek -----
 # Kigyűjtöm a számlákon gyakran előforduló mezőket és azok lehetséges mintáit
-def extract_text_from_pdf(pdf_path):
+def szöveg_vagy_kép_PDF(pdf_path):
     text = ""
     with pdfplumber.open(pdf_path) as pdf:
         for page in pdf.pages:
@@ -26,19 +28,16 @@ def extract_text_from_pdf(pdf_path):
                 text += page_text + "\n"
     return text.strip()
 
-
-def ocr_pdf(pdf_path):
-    images = convert_from_path(pdf_path=pdf_path, dpi=300)
+def ocr_image(image_objs):
     text = ""
-
-    for img in images:
-        img_np = np.array(img)
-        gray = cv2.cvtColor(img_np, cv2.COLOR_BGR2GRAY)
-        gray = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)[1]
-        text += pytesseract.image_to_string(gray)
-
+    for i in range(len(image_objs)):
+        image_bytes = image_objs[i]["image"]
+        io_bytes = io.BytesIO(image_bytes)
+        img = Image.open(io_bytes)
+        text += pytesseract.image_to_string(img)
     return text
 
+# ----- REGEX -----
 # Mezők kinyerése reguláris kifejezésekkel
 def extract_invoice_fields(text):
     patterns = {
@@ -64,18 +63,21 @@ def extract_invoice_fields(text):
 
     return data
 
+# ----- fő művelet -----
 # Fő függvény a számla feldolgozására (Text alapú vagy OCR)
-def parse_invoice(pdf_path):
-    text = extract_text_from_pdf(pdf_path)
+def számla_feldolgozás(pdf_path):
+    text = szöveg_vagy_kép_PDF(pdf_path)
 
     # If very little text is found, assume scanned PDF
     if len(text) < 15:
         print("Scanned PDF detected → using OCR")
-        #text = ocr_pdf(pdf_path)
-        #images = PDF_to_images2(pdf_path)
-        #extract_text(images[0])
-        text = extract_text("invoices/page_1.png")
+
+        images = PDF_to_images(pdf_path)
+        text = ocr_image(images)
         print(text)
+
+        #text = extract_text("invoices/page_1.png")
+        #print(text)
 
     else:
         print("Text-based PDF detected")
@@ -85,70 +87,34 @@ def parse_invoice(pdf_path):
 
 def PDF_to_images(pdf_path):
     list = []
-    img_count = 0
-    doc = fitz.open(pdf_path)
 
-
-    for page_index in range(len(doc)):
-        page = doc[page_index]
-        image_list = page.get_images(full=True)
+    doc = fitz.open(pdf_path)                       # 1. kinyitom a pdf-et
+    for page_index in range(len(doc)):              # 2. iterálom az összes oldalt
+        page = doc[page_index]                      # 3. lementem az oldal tatlmát
+        image_list = page.get_images(full=True)     # 4. lementem az oldalról az összes képet
 
         for img_index, img in enumerate(image_list):
-            xref = img[0]
+            xref = img[0]                           # 5. a kép byte-jainak lementése
             base_image = doc.extract_image(xref)
-            image_bytes = base_image["image"]
-            image_ext = base_image["ext"]
             list.append(base_image)
 
-            image_filename = f"page{page_index+1}_img{img_index+1}.{image_ext}"
-            #image_path = os.path.join(output_dir, image_filename)
-
-            #with open(image_path, "wb") as f:
-            #    f.write(image_bytes)
-
-            img_count += 1
-
-    print(f"Extracted {img_count} images")
+    doc.close()
     return list
 
-def PDF_to_images2(pdf_path):
-    doc = fitz.open(pdf_path)
+#def extract_text(image_path):
+#        img = Image.open(image_path)
+#        text = pytesseract.image_to_string(img)
+#        return text
 
-    for page in doc:
-        images = page.get_images(full=True)
-        if len(images) != 1:
-            raise RuntimeError(f"Expected 1 image on page, found {len(images)}")
-    
-        xref = images[0][0]
-        img = doc.extract_image(xref)
-        image_bytes = img["image"]
-        image_ext = img["ext"]
-
-        pil_img = Image.open(io.BytesIO(img["image"]))
-        text =+ pytesseract.image_to_string(pil_img)
-        #images.append(text)
-
-        #output_path = os.path.join("invoices", f"page_{1}.{image_ext}")
-
-    #with open(output_path, "wb") as f:
-    #    f.write(image_bytes)
-
-    return text
-
-def extract_text(image_path):
-        img = Image.open(image_path)
-        text = pytesseract.image_to_string(img)
-        return text
-
-def process_invoice_folder(folder_path, output_csv="invoices.csv"):
+def process_invoice_folder(main_folder_path, output_csv="invoices.csv"):
     results = []
 
-    for file in os.listdir(folder_path):
+    for file in os.listdir(main_folder_path):
         if file.lower().endswith(".pdf"):
-            pdf_path = os.path.join(folder_path, file)
+            pdf_path = os.path.join(main_folder_path, file)
             print(pdf_path)
             print(f"Processing: {file}")
-            invoice_data = parse_invoice(pdf_path)
+            invoice_data = számla_feldolgozás(pdf_path)
             results.append(invoice_data)
     for resoult in results:
         print(resoult)
@@ -160,8 +126,8 @@ def process_invoice_folder(folder_path, output_csv="invoices.csv"):
 
 
 if __name__ == "__main__":
-    invoice_data, raw_text = parse_invoice("invoices\invoice.pdf") # invoice_data = már kinyert mezők, raw_text = teljes szöveg
-    process_invoice_folder(folder_path)
+    invoice_data, raw_text = számla_feldolgozás("invoices/two_page_document_pic.pdf") # invoice_data = már kinyert mezők, raw_text = teljes szöveg
+    process_invoice_folder(main_folder_path)
 
     print("\nExtracted Invoice Data:")
     for k, v in invoice_data.items(): # kiíratás, itt kell majd ecelbe rakni.
@@ -172,8 +138,8 @@ if __name__ == "__main__":
 class ImageReader:
     def __init__(self, image_path):
         self.image_path = image_path
-        windowsPath = r"D:\Program Files\Tesseract-OCR\tesseract.exe"
-        pytesseract.tesseract_cmd = windowsPath
+        tesseractWindowsPath = r"D:/Program Files/Tesseract-OCR/tesseract.exe"
+        pytesseract.tesseract_cmd = tesseractWindowsPath
 
     def extract_text(self):
         img = Image.open(self.image_path)
