@@ -81,6 +81,8 @@ def számla_feldolgozás(pdf_path):
 
     else:
         print("Text-based PDF detected")
+        text = szöveg_vagy_kép_PDF(pdf_path)
+
 
     invoice_data = extract_invoice_fields(text)
     return invoice_data, text
@@ -101,52 +103,19 @@ def PDF_to_images(pdf_path):
     doc.close()
     return list
 
-#def extract_text(image_path):
-#        img = Image.open(image_path)
-#        text = pytesseract.image_to_string(img)
-#        return text
-
-def process_invoice_folder(main_folder_path, output_csv="invoices.csv"):
-    results = []
-
-    for file in os.listdir(main_folder_path):
-        if file.lower().endswith(".pdf"):
-            pdf_path = os.path.join(main_folder_path, file)
-            print(pdf_path)
-            print(f"Processing: {file}")
-            invoice_data = számla_feldolgozás(pdf_path)
-            results.append(invoice_data)
-    for resoult in results:
-        print(resoult)
-        print("\n")
-
-    #df = pd.DataFrame(results)
-    #df.to_csv(output_csv, index=False)
-    #return df
-
-
 if __name__ == "__main__":
-    invoice_data, raw_text = számla_feldolgozás("invoices/two_page_document_pic.pdf") # invoice_data = már kinyert mezők, raw_text = teljes szöveg
-    process_invoice_folder(main_folder_path)
+    root_folder = r"C:/Users/User/Documents/GitHub/Invoice-scanner"
+
+    exclude = set(["New folder", "Windows", "Desktop", ".venv", "venv", ".git"])
+    for current_path, folders, files in os.walk(root_folder):
+        folders[:] = [d for d in folders if d not in exclude]
+        # If this folder has NO subfolders
+        if not folders:
+            for file in files:
+                if file.lower().endswith(".pdf"):
+                    pdf_path = os.path.join(current_path, file)
+                    invoice_data, raw_text = számla_feldolgozás(pdf_path) # invoice_data = már kinyert mezők, raw_text = teljes szöveg   
 
     print("\nExtracted Invoice Data:")
     for k, v in invoice_data.items(): # kiíratás, itt kell majd ecelbe rakni.
         print(f"{k}: {v}") 
-
-
-
-class ImageReader:
-    def __init__(self, image_path):
-        self.image_path = image_path
-        tesseractWindowsPath = r"D:/Program Files/Tesseract-OCR/tesseract.exe"
-        pytesseract.tesseract_cmd = tesseractWindowsPath
-
-    def extract_text(self):
-        img = Image.open(self.image_path)
-        text = pytesseract.image_to_string(img)
-        return text
-    
-""" if __name__ == "__main__":
-    reader = ImageReader(image_path)
-    extracted_text = reader.extract_text()
-    print(extracted_text) """
